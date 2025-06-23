@@ -4,7 +4,7 @@ import { Video, User, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import io from "socket.io-client";
 
-// Connect to your deployed backend
+// Your deployed signaling server
 const socket = io("https://socialskillz-server.onrender.com");
 
 export default function Home() {
@@ -17,46 +17,49 @@ export default function Home() {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   };
 
+  // 🔁 Get user's media after component mounts
   useEffect(() => {
-    // Join on load
-    socket.emit("join");
-
-    socket.on("joined", async ({ roomId, initiator }) => {
-      console.log("Joined room:", roomId, "Initiator:", initiator);
-
-      const pc = new RTCPeerConnection(configuration);
-      setPeerConnection(pc);
-
+    const startMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
-        } else {
-          console.warn("Local video element not ready");
-        }
-
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-        setConnected(true);
-
-        pc.ontrack = (event) => {
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = event.streams[0];
-          }
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit("signal", { roomId, data: { candidate: event.candidate } });
-          }
-        };
-
-        if (initiator) {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit("signal", { roomId, data: { sdp: pc.localDescription } });
         }
       } catch (err) {
-        console.error("Error accessing media devices:", err);
+        console.error("Could not access media devices:", err);
+      }
+    };
+
+    startMedia();
+  }, []);
+
+  useEffect(() => {
+    socket.on("joined", async ({ roomId, initiator }) => {
+      const pc = new RTCPeerConnection(configuration);
+      setPeerConnection(pc);
+
+      const stream = localVideoRef.current?.srcObject;
+      if (stream) {
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+        setConnected(true);
+      }
+
+      pc.ontrack = (event) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("signal", { roomId, data: { candidate: event.candidate } });
+        }
+      };
+
+      if (initiator) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("signal", { roomId, data: { sdp: pc.localDescription } });
       }
     });
 
@@ -81,6 +84,10 @@ export default function Home() {
       }
     });
   }, [peerConnection]);
+
+  const joinChat = () => {
+    socket.emit("join");
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center text-white font-sans p-6">
@@ -143,19 +150,28 @@ export default function Home() {
         transition={{ delay: 1, duration: 0.5 }}
       >
         <Button
-          onClick={() => socket.emit("join")}
+          onClick={joinChat}
           className="text-lg px-8 py-4 bg-yellow-300 text-black font-bold rounded-full shadow-xl hover:bg-yellow-400 transition-colors"
         >
           {connected ? "Connected!" : "Start Chatting Now"}
         </Button>
       </motion.div>
 
-      {connected && (
-        <div className="mt-10 flex gap-4 w-full max-w-4xl justify-center">
-          <video ref={localVideoRef} autoPlay muted className="w-1/2 rounded-xl shadow-lg border-4 border-white" />
-          <video ref={remoteVideoRef} autoPlay className="w-1/2 rounded-xl shadow-lg border-4 border-white" />
-        </div>
-      )}
+      <div className="mt-10 flex gap-4 w-full max-w-4xl justify-center">
+        <video
+          ref={localVideoRef}
+          autoPlay
+          muted
+          playsInline
+          className="w-1/2 rounded-xl shadow-lg border-4 border-white"
+        />
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          className="w-1/2 rounded-xl shadow-lg border-4 border-white"
+        />
+      </div>
     </main>
   );
 }
