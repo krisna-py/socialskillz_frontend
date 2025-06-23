@@ -1,22 +1,86 @@
-// SocialSkillzVideoChat - React-based high-end video chatting website with WebRTC
-
-import React, { useRef, useState } from "react";
-import { Button } from "./components/ui/button";
-import { Card, CardContent } from "./components/ui/card";
+import React, { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Video, User, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import io from "socket.io-client";
+
+// Connect to your deployed backend
+const socket = io("https://socialskillz-server.onrender.com");
 
 export default function Home() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const [connected, setConnected] = useState(false);
+  const [peerConnection, setPeerConnection] = useState(null);
 
-  const startVideo = async () => {
-    const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideoRef.current.srcObject = localStream;
-    // Placeholder for real WebRTC signaling logic
-    setConnected(true);
+  const configuration = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   };
+
+  useEffect(() => {
+    // Join on load
+    socket.emit("join");
+
+    socket.on("joined", async ({ roomId, initiator }) => {
+      console.log("Joined room:", roomId, "Initiator:", initiator);
+
+      const pc = new RTCPeerConnection(configuration);
+      setPeerConnection(pc);
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        } else {
+          console.warn("Local video element not ready");
+        }
+
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+        setConnected(true);
+
+        pc.ontrack = (event) => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = event.streams[0];
+          }
+        };
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit("signal", { roomId, data: { candidate: event.candidate } });
+          }
+        };
+
+        if (initiator) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit("signal", { roomId, data: { sdp: pc.localDescription } });
+        }
+      } catch (err) {
+        console.error("Error accessing media devices:", err);
+      }
+    });
+
+    socket.on("signal", async ({ peerId, data }) => {
+      if (!peerConnection) return;
+
+      if (data.sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (data.sdp.type === "offer") {
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          socket.emit("signal", { roomId: peerId, data: { sdp: answer } });
+        }
+      } else if (data.candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    });
+
+    socket.on("peer-left", () => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+    });
+  }, [peerConnection]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center text-white font-sans p-6">
@@ -79,7 +143,7 @@ export default function Home() {
         transition={{ delay: 1, duration: 0.5 }}
       >
         <Button
-          onClick={startVideo}
+          onClick={() => socket.emit("join")}
           className="text-lg px-8 py-4 bg-yellow-300 text-black font-bold rounded-full shadow-xl hover:bg-yellow-400 transition-colors"
         >
           {connected ? "Connected!" : "Start Chatting Now"}
