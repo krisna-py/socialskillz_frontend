@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://your-signaling-server-url.onrender.com"); // Replace with your actual signaling server URL
+const socket = io("https://socialskillz-server.onrender.com"); // Replace with your deployed signaling server URL
 
 export default function App() {
   const localVideoRef = useRef(null);
@@ -13,11 +13,14 @@ export default function App() {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   };
 
-  // ✅ Step 1: Safely get user's media after mount
+  // ✅ Get local video stream on mount
   useEffect(() => {
     const startMedia = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
@@ -29,7 +32,7 @@ export default function App() {
     startMedia();
   }, []);
 
-  // ✅ Step 2: Set up signaling & WebRTC
+  // ✅ Handle signaling and peer connection
   useEffect(() => {
     socket.on("joined", async ({ roomId, initiator }) => {
       const pc = new RTCPeerConnection(configuration);
@@ -82,19 +85,30 @@ export default function App() {
     });
   }, [peerConnection]);
 
-  // ✅ Step 3: Simple button to join chat
   const joinChat = () => {
     socket.emit("join");
   };
 
   return (
-    <div className="App">
-      <h1>SocialSkillz Video Chat</h1>
-      <button onClick={joinChat}>
+    <div className="App" style={{ padding: "2rem", textAlign: "center", color: "white", backgroundColor: "#1a1a2e", minHeight: "100vh" }}>
+      <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>🎥 SocialSkillz Video Chat</h1>
+      <button
+        onClick={joinChat}
+        style={{
+          backgroundColor: "#ffce00",
+          padding: "12px 24px",
+          fontSize: "16px",
+          fontWeight: "bold",
+          borderRadius: "8px",
+          border: "none",
+          cursor: "pointer",
+          marginBottom: "2rem",
+        }}
+      >
         {connected ? "Connected" : "Start Chatting Now"}
       </button>
 
-      <div className="video-container" style={{ display: "flex", gap: "20px", marginTop: "20px" }}>
+      <div className="video-container" style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
         <video
           ref={localVideoRef}
           autoPlay
