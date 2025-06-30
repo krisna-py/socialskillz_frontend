@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://your-signaling-server-url.onrender.com"); // Replace with your actual backend URL
+const socket = io("https://socialskillz-server.onrender.com"); // Replace with your actual backend URL
 
 export default function App() {
   const [connected, setConnected] = useState(false);
