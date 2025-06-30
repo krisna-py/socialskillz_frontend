@@ -1,9 +1,7 @@
-// SocialSkillzTextChat - React-based high-end text chatting website with WebSockets
-
 import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://socialskillz-server.onrender.com"); // Replace with your actual backend URL
+const socket = io("https://your-signaling-server-url.onrender.com"); // Replace with your backend URL
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -42,8 +40,8 @@ export default function App() {
       <div className="bg-white/10 backdrop-blur-lg p-6 rounded-xl shadow-lg w-full max-w-md">
         <div className="h-64 overflow-y-auto mb-4 p-2 border border-white rounded-lg bg-white/5">
           {messages.map((msg, idx) => (
-            <div key={idx} className={`mb-2 text-${msg.from === "me" ? "right" : "left"}`}> 
-              <span className={msg.from === "me" ? "text-green-300" : "text-blue-300"}> 
+            <div key={idx} className={`mb-2 text-${msg.from === "me" ? "right" : "left"}`}>
+              <span className={msg.from === "me" ? "text-green-300" : "text-blue-300"}>
                 {msg.from === "me" ? "You" : "Stranger"}:
               </span> {msg.text}
             </div>
